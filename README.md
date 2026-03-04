@@ -1,4 +1,4 @@
-# 🔬 Autonomous Research Agent
+# SumScrum - Autonomous Research Agent 
 
 An AI-powered research agent built with **LangChain** and **LangGraph** that autonomously:
 - Searches the web for information on any topic
@@ -45,7 +45,7 @@ python main.py "Climate change solutions" -o climate_report.md
 python main.py "Quantum computing basics" --model gpt-4o
 ```
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 sumscrum/
@@ -62,7 +62,7 @@ sumscrum/
     └── test_agent.py   # Unit tests
 ```
 
-## 🔧 How It Works
+## How It Works
 
 The agent uses a **LangGraph** state machine with four main stages:
 
@@ -112,7 +112,7 @@ agent.save_report(report, "my_research.md")
 - `ask <question>` - Ask a general question
 - `quit` - Exit
 
-## 🛠️ Configuration
+## Configuration
 
 ### Environment Variables
 
