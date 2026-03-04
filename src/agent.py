@@ -30,6 +30,7 @@ class ResearchAgent:
         temperature: float = 0,
         verbose: bool = True,
         max_sources: int = 10,
+        enterprise_connectors: List[str] = None,
     ):
         """
         Initialize the Research Agent.
@@ -39,6 +40,16 @@ class ResearchAgent:
             temperature: LLM temperature (default: 0 for consistency)
             verbose: Whether to print progress updates
             max_sources: Maximum number of sources to process
+            enterprise_connectors: List of enterprise connector names to use
+                                  Options: 'confluence', 'sharepoint', 'notion',
+                                          'slack', 'postgresql', 'elasticsearch',
+                                          's3', 'azure', 'pinecone', 'chromadb'
+        
+        Example:
+            # Connect to Confluence and Slack
+            agent = ResearchAgent(
+                enterprise_connectors=['confluence', 'slack']
+            )
         """
         load_dotenv()
         
@@ -48,6 +59,7 @@ class ResearchAgent:
         self.temperature = temperature
         self.verbose = verbose
         self.max_sources = max_sources
+        self.enterprise_connectors = enterprise_connectors or []
         
         # Initialize LLM
         self.llm = ChatOpenAI(
@@ -55,14 +67,16 @@ class ResearchAgent:
             temperature=temperature,
         )
         
-        # Create the research graph
-        self.graph = create_research_graph(self.llm)
+        # Create the research graph (with enterprise connectors if specified)
+        self.graph = create_research_graph(self.llm, self.enterprise_connectors)
         
         # Get available tools
         self.tools = get_all_tools()
         
         if self.verbose:
-            print(f" Research Agent initialized with {model}")
+            print(f"✓ Research Agent initialized with {model}")
+            if self.enterprise_connectors:
+                print(f"✓ Enterprise connectors: {', '.join(self.enterprise_connectors)}")
     
     def _validate_api_keys(self) -> None:
         """Validate that required API keys are set."""

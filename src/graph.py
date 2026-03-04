@@ -135,12 +135,14 @@ def create_planning_node(llm: ChatOpenAI):
     return planning_node
 
 
-def create_search_node(llm: ChatOpenAI):
+def create_search_node(llm: ChatOpenAI, enterprise_connectors: List[str] = None):
     """
     Create a search node that finds diverse sources including beginner-friendly content.
+    Supports optional enterprise connectors for internal data sources.
     
     Args:
         llm: The language model to use
+        enterprise_connectors: List of connector names to use (e.g., ['confluence', 'slack'])
         
     Returns:
         Node function
@@ -152,6 +154,33 @@ def create_search_node(llm: ChatOpenAI):
         all_sources = []
         topic = state["topic"]
         
+        # ============================================================
+        # Enterprise Connectors (if configured)
+        # ============================================================
+        if enterprise_connectors:
+            try:
+                from .connectors import get_connector_by_name
+                
+                for connector_name in enterprise_connectors:
+                    connector = get_connector_by_name(connector_name)
+                    if connector:
+                        try:
+                            results = connector.invoke({"query": topic})
+                            for result in results:
+                                if "error" not in result:
+                                    all_sources.append({
+                                        **result,
+                                        "subtopic": "internal knowledge"
+                                    })
+                            print(f"✓ {connector_name}: Found {len(results)} results")
+                        except Exception as e:
+                            print(f"Enterprise connector '{connector_name}' error: {e}")
+            except ImportError:
+                print("Enterprise connectors not available")
+        
+        # ============================================================
+        # Web Search (Default)
+        # ============================================================
         # First, search for introductory/overview content
         try:
             intro_results = search_web.invoke({
@@ -490,15 +519,28 @@ def create_error_node():
 # Graph Construction
 # ============================================================
 
-def create_research_graph(llm: Optional[ChatOpenAI] = None) -> StateGraph:
+def create_research_graph(
+    llm: Optional[ChatOpenAI] = None,
+    enterprise_connectors: List[str] = None
+) -> StateGraph:
     """
     Create the research workflow graph.
     
     Args:
         llm: Optional language model (creates default if not provided)
+        enterprise_connectors: List of enterprise connector names to use
+                              Options: 'confluence', 'sharepoint', 'notion', 
+                                      'slack', 'postgresql', 'elasticsearch',
+                                      's3', 'azure', 'pinecone', 'chromadb'
         
     Returns:
         Compiled StateGraph for research workflow
+    
+    Example:
+        # With enterprise connectors
+        graph = create_research_graph(
+            enterprise_connectors=['confluence', 'slack', 'pinecone']
+        )
     """
     if llm is None:
         llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
@@ -508,7 +550,7 @@ def create_research_graph(llm: Optional[ChatOpenAI] = None) -> StateGraph:
     
     # Add nodes
     workflow.add_node("planning", create_planning_node(llm))
-    workflow.add_node("searching", create_search_node(llm))
+    workflow.add_node("searching", create_search_node(llm, enterprise_connectors))
     workflow.add_node("reading", create_reading_node(llm))
     workflow.add_node("synthesizing", create_synthesis_node(llm))
     workflow.add_node("error", create_error_node())
