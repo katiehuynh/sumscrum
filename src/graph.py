@@ -10,7 +10,12 @@ from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, System
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 import operator
-
+# Import centralized prompts
+from .prompts import (
+    PLANNING_SYSTEM_PROMPT,
+    get_extraction_prompt,
+    get_synthesis_prompt,
+)
 
 # ============================================================
 # State Definitions
@@ -81,24 +86,9 @@ def create_planning_node(llm: ChatOpenAI):
         """Break down the research topic into progressive subtopics."""
         topic = state["topic"]
         
-        system_prompt = """You are an educational research planner. Given a research topic, 
-        break it down into 5-7 subtopics that will help someone with ZERO prior knowledge 
-        fully understand the topic.
-        
-        Structure the subtopics to build understanding progressively:
-        1. First subtopics should cover foundational concepts and definitions
-        2. Middle subtopics should cover how things work and key mechanisms
-        3. Later subtopics should cover applications, challenges, and future trends
-        
-        Each subtopic should be specific enough to search for, but broad enough to find good sources.
-        
-        Return ONLY a JSON list of strings in learning order, like:
-        ["foundational concept 1", "how X works", "applications of X", "challenges in X", "future of X"]
-        
-        Do not include any other text."""
-        
+        # Use centralized prompt from prompts.py
         messages = [
-            SystemMessage(content=system_prompt),
+            SystemMessage(content=PLANNING_SYSTEM_PROMPT),
             HumanMessage(content=f"Research topic: {topic}")
         ]
         
@@ -300,30 +290,13 @@ def create_reading_node(llm: ChatOpenAI):
             subtopic = source.get("subtopic", state["topic"])
             
             if content:
-                extract_prompt = f"""You are extracting educational content about "{state['topic']}" 
-(specifically related to: {subtopic}).
-
-Source Title: {source.get('title', 'Unknown')}
-Source Content: {content[:3000]}
-
-Extract the following (if present in the source):
-
-## Key Facts
-- List 2-4 important factual findings (start each with "- ")
-
-## Definitions  
-- Any important terms defined in this source
-
-## How It Works
-- Any explanations of mechanisms, processes, or how things function
-
-## Examples
-- Any real-world examples, case studies, or applications mentioned
-
-## Important Numbers
-- Any statistics, dates, or quantitative data
-
-Be concise but informative. Only include sections where you found relevant content."""
+                # Use centralized prompt from prompts.py
+                extract_prompt = get_extraction_prompt(
+                    topic=state['topic'],
+                    subtopic=subtopic,
+                    title=source.get('title', 'Unknown'),
+                    content=content
+                )
 
                 try:
                     response = llm.invoke([HumanMessage(content=extract_prompt)])
@@ -384,107 +357,13 @@ def create_synthesis_node(llm: ChatOpenAI):
         subtopics = state.get("subtopics", [])
         subtopics_text = "\n".join([f"- {st}" for st in subtopics])
         
-        synthesis_prompt = f"""You are an expert educational writer and research synthesizer. Create a comprehensive, 
-beginner-friendly research report on: "{state['topic']}"
-
-Your goal is to make this topic FULLY UNDERSTANDABLE to someone with ZERO prior knowledge.
-Structure the report to progressively build understanding from simple to complex.
-
-## Research Findings Collected:
-{findings_text}
-
-## Subtopics Researched:
-{subtopics_text}
-
-## Available Sources for Citations:
-{sources_list}
-
----
-
-## REPORT STRUCTURE (Follow this exactly):
-
-# [Topic Title]
-
-## 1. The One-Sentence Summary
-Start with a single, clear sentence that captures what this topic is about in the simplest terms possible.
-
-## 2. Why Should You Care?
-- What problem does this solve or address?  
-- Who is affected by this topic?
-- Why is it relevant right now?
-(2-3 short paragraphs, written for someone who knows nothing)
-
-## 3. The Big Picture: Core Concepts
-Explain the 3-5 foundational ideas someone must understand FIRST before anything else makes sense.
-Use this format for each concept:
-
-### Concept 1: [Name]
-**In plain English:** [One sentence explanation a 10-year-old could understand]
-**The key insight:** [What makes this important]
-**Analogy:** [Compare to something familiar from everyday life]
-
-(Repeat for each core concept)
-
-## 4. How It Works: The Building Blocks
-Now that the reader understands the basics, explain how the pieces fit together.
-- Use numbered steps or a logical flow
-- Include a simple mental model or framework
-- Explain cause and effect relationships
-
-## 5. Deep Dive: Key Findings
-Organize the research findings by subtopic. For each:
-
-### [Subtopic Name]
-**What we found:** [Key discoveries with citations like [1], [2]]
-**What this means:** [Interpretation for a beginner]
-**Current state:** [Where things stand today]
-
-## 6. Real-World Applications
-- Concrete examples of this topic in action
-- Who is using this and how
-- Impact on everyday life
-
-## 7. Challenges & Limitations
-- What problems or barriers exist
-- What we don't know yet
-- Common misconceptions to avoid
-
-## 8. The Future: What's Next
-- Emerging trends
-- Open questions being researched
-- Potential developments to watch
-
-## 9. Key Takeaways
-Provide 5-7 bullet points summarizing the most important things to remember.
-Write these as "sticky" insights that are easy to recall.
-
-## 10. Glossary
-Define 8-12 key terms used in this report. Format:
-- **Term**: Definition in simple language
-
-## 11. Learn More
-Suggest logical next steps for someone who wants to go deeper:
-- What to learn next
-- Related topics to explore
-- Types of resources to seek out
-
-## 12. References
-List all sources used with full citations in this format:
-[1] Author/Source. "Title." URL
-
----
-
-## WRITING GUIDELINES:
-- Write at an 8th-grade reading level for maximum accessibility
-- Use short paragraphs (2-4 sentences max)
-- Prefer active voice over passive
-- Include analogies and comparisons to familiar things
-- Define jargon immediately when first used
-- Use bullet points and numbered lists liberally
-- Bold key terms when introducing them
-- Every section should flow logically to the next
-- Assume the reader is intelligent but uninformed
-- Cite sources using [number] notation throughout"""
+        # Use centralized prompt from prompts.py
+        synthesis_prompt = get_synthesis_prompt(
+            topic=state['topic'],
+            findings=findings_text,
+            subtopics=subtopics_text,
+            sources=sources_list
+        )
 
         try:
             response = llm.invoke([HumanMessage(content=synthesis_prompt)])
